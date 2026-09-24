@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Métricas de Tiempo de Entrega - Lead Time y Cycle Time</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                        },
+                        lead: {
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            bg: 'rgba(99, 102, 241, 0.1)',
+                        },
+                        cycle: {
+                            500: '#10b981',
+                            600: '#059669',
+                            bg: 'rgba(16, 185, 129, 0.1)',
+                        },
+                        queue: {
+                            500: '#f59e0b',
+                            bg: 'rgba(245, 158, 11, 0.1)',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .bar-transition {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glow-lead {
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .glow-cycle {
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .glow-queue {
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+        }
+
+        /* Custom range styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 22px;
+            width: 22px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            border: 2px solid currentColor;
+            margin-top: -8px;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-full flex flex-col justify-between transition-colors duration-300">
+
+    <!-- Encabezado Principal -->
+    <header class="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="p-2.5 bg-indigo-600 text-white rounded-xl shadow-md shadow-indigo-500/20">
+                    <i data-lucide="timer" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-600 to-emerald-500 bg-clip-text text-transparent">
+                        Métricas de Tiempo de Entrega
+                    </h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Diagrama interactivo y simulador de flujo Kanban / Ágil</p>
+                </div>
+            </div>
+
+            <!-- Selector de Tema -->
+            <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2.5 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Cambiar tema">
+                <i id="themeIcon" data-lucide="moon" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow space-y-8 w-full">
+
+        <!-- Selector de Enfoque (Filtros de Métricas) -->
+        <section class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-800/80 p-4 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-700/60">
+            <div class="flex items-center space-x-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                <i data-lucide="layers" class="w-4 h-4 text-indigo-500"></i>
+                <span>Destacar Métrica:</span>
+            </div>
+            
+            <div class="inline-flex p-1 bg-slate-100 dark:bg-slate-900 rounded-xl w-full sm:w-auto">
+                <button onclick="setFocus('all')" id="btn-focus-all" class="flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm">
+                    Ambas Métricas
+                </button>
+                <button onclick="setFocus('lead')" id="btn-focus-lead" class="flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 text-slate-600 dark:text-slate-400 hover:text-indigo-600">
+                    Sólo Lead Time
+                </button>
+                <button onclick="setFocus('cycle')" id="btn-focus-cycle" class="flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 text-slate-600 dark:text-slate-400 hover:text-emerald-600">
+                    Sólo Cycle Time
+                </button>
+            </div>
+        </section>
+
+        <!-- Tarjeta del Diagrama Visual -->
+        <section class="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200/80 dark:border-slate-700/60 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-8">
+                <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <i data-lucide="git-commit" class="w-5 h-5 text-indigo-500"></i>
+                    Flujo de Trabajo y Métricas
+                </h2>
+                <span class="text-xs px-3 py-1 rounded-full font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    Vista de Proceso
+                </span>
+            </div>
+
+            <!-- Diagrama del Flujo -->
+            <div class="relative py-6">
+                <!-- Hitos del Flujo (Eventos Clave) -->
+                <div class="grid grid-cols-3 gap-2 relative z-10 text-center mb-10">
+                    <!-- Hito 1: Solicitud Creada -->
+                    <div class="flex flex-col items-center group">
+                        <div class="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 border-2 border-amber-400 dark:border-amber-500 flex items-center justify-center font-bold text-lg shadow-lg group-hover:scale-105 transition-transform">
+                            <i data-lucide="file-plus" class="w-5 h-5"></i>
+                        </div>
+                        <span class="mt-3 font-bold text-sm text-slate-800 dark:text-slate-200">Solicitud Creada</span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">(Entrada al Backlog)</span>
+                    </div>
+
+                    <!-- Hito 2: Inicio de Trabajo -->
+                    <div class="flex flex-col items-center group">
+                        <div class="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border-2 border-emerald-400 dark:border-emerald-500 flex items-center justify-center font-bold text-lg shadow-lg group-hover:scale-105 transition-transform">
+                            <i data-lucide="play" class="w-5 h-5 ml-0.5"></i>
+                        </div>
+                        <span class="mt-3 font-bold text-sm text-slate-800 dark:text-slate-200">Inicio de Trabajo</span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">(En Desarrollo / WIP)</span>
+                    </div>
+
+                    <!-- Hito 3: Tarea Finalizada -->
+                    <div class="flex flex-col items-center group">
+                        <div class="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 border-2 border-indigo-400 dark:border-indigo-500 flex items-center justify-center font-bold text-lg shadow-lg group-hover:scale-105 transition-transform">
+                            <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                        </div>
+                        <span class="mt-3 font-bold text-sm text-slate-800 dark:text-slate-200">Tarea Finalizada</span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">(Entregado al Cliente)</span>
+                    </div>
+                </div>
+
+                <!-- Representación Gráfica de Tiempos (Barras / Soportes) -->
+                <div class="space-y-6 pt-2">
+
+                    <!-- Barra 1: LEAD TIME (Todo el trayecto) -->
+                    <div id="leadTimeContainer" class="bar-transition relative p-4 rounded-2xl border-2 border-indigo-400/80 dark:border-indigo-500/80 bg-indigo-50/50 dark:bg-indigo-950/30">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center space-x-2">
+                                <span class="w-3 h-3 rounded-full bg-indigo-600"></span>
+                                <span class="font-bold text-xs uppercase tracking-wider text-indigo-900 dark:text-indigo-200">LEAD TIME (Tiempo de Entrega)</span>
+                            </div>
+                            <span id="leadTimeValueDisplay" class="font-bold text-sm text-indigo-700 dark:text-indigo-300">
+                                12 Días
+                            </span>
+                        </div>
+                        
+                        <!-- Flecha visual estilizada con soportes -->
+                        <div class="relative h-7 flex items-center">
+                            <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-indigo-600 dark:bg-indigo-400"></div>
+                            <div class="w-full h-1 bg-gradient-to-r from-indigo-500 via-indigo-600 to-indigo-500 relative">
+                                <div class="absolute left-0 -top-1.5 w-0 h-0 border-t-4 border-b-4 border-r-8 border-transparent border-r-indigo-600"></div>
+                                <div class="absolute right-0 -top-1.5 w-0 h-0 border-t-4 border-b-4 border-l-8 border-transparent border-l-indigo-600"></div>
+                            </div>
+                            <div class="absolute right-0 top-0 bottom-0 w-0.5 bg-indigo-600 dark:bg-indigo-400"></div>
+                        </div>
+
+                        <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                            Abarca desde la solicitud inicial hasta la entrega final al cliente (Cola + Desarrollo).
+                        </p>
+                    </div>
+
+                    <!-- Fila Segmentada: Tiempo de Espera (Cola) + Cycle Time -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                        <!-- Tiempo de Espera / Cola -->
+                        <div id="queueTimeContainer" class="bar-transition relative p-4 rounded-2xl border-2 border-amber-400/80 dark:border-amber-500/80 bg-amber-50/50 dark:bg-amber-950/30">
+                            <div class="flex justify-between items-center mb-2">
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                                    <span class="font-bold text-xs uppercase tracking-wider text-amber-900 dark:text-amber-200">TIEMPO EN COLA</span>
+                                </div>
+                                <span id="queueTimeValueDisplay" class="font-bold text-sm text-amber-700 dark:text-amber-300">
+                                    7 Días
+                                </span>
+                            </div>
+
+                            <div class="relative h-6 flex items-center">
+                                <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-amber-500"></div>
+                                <div class="w-full h-1 bg-amber-500 relative">
+                                    <div class="absolute left-0 -top-1 w-0 h-0 border-t-3 border-b-3 border-r-6 border-transparent border-r-amber-500"></div>
+                                    <div class="absolute right-0 -top-1 w-0 h-0 border-t-3 border-b-3 border-l-6 border-transparent border-l-amber-500"></div>
+                                </div>
+                                <div class="absolute right-0 top-0 bottom-0 w-0.5 bg-amber-500"></div>
+                            </div>
+
+                            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                                Tiempo durmiendo en el Backlog.
+                            </p>
+                        </div>
+
+                        <!-- CYCLE TIME (Tiempo de Ciclo) - Ocupa 2 columnas en desktop -->
+                        <div id="cycleTimeContainer" class="md:col-span-2 bar-transition relative p-4 rounded-2xl border-2 border-emerald-400/80 dark:border-emerald-500/80 bg-emerald-50/50 dark:bg-emerald-950/30">
+                            <div class="flex justify-between items-center mb-2">
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                                    <span class="font-bold text-xs uppercase tracking-wider text-emerald-900 dark:text-emerald-200">CYCLE TIME (Tiempo de Ciclo)</span>
+                                </div>
+                                <span id="cycleTimeValueDisplay" class="font-bold text-sm text-emerald-700 dark:text-emerald-300">
+                                    5 Días
+                                </span>
+                            </div>
+
+                            <div class="relative h-6 flex items-center">
+                                <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-emerald-500"></div>
+                                <div class="w-full h-1 bg-emerald-500 relative">
+                                    <div class="absolute left-0 -top-1 w-0 h-0 border-t-3 border-b-3 border-r-6 border-transparent border-r-emerald-500"></div>
+                                    <div class="absolute right-0 -top-1 w-0 h-0 border-t-3 border-b-3 border-l-6 border-transparent border-l-emerald-500"></div>
+                                </div>
+                                <div class="absolute right-0 top-0 bottom-0 w-0.5 bg-emerald-500"></div>
+                            </div>
+
+                            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                                Trabajo activo en progreso (Desarrollo, Pruebas y Despliegue).
+                            </p>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Simulador interactivo de Tiempos -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Panel de Control (Controles) -->
+            <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-lg border border-slate-200/80 dark:border-slate-700/60 space-y-6">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <i data-lucide="sliders" class="w-5 h-5 text-indigo-500"></i>
+                        Simulador de Parámetros de Tiempo
+                    </h3>
+                    <button onclick="resetSliders()" class="text-xs text-slate-500 hover:text-indigo-600 dark:text-slate-400 flex items-center gap-1 transition-colors">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reestablecer
+                    </button>
+                </div>
+
+                <!-- Slider 1: Tiempo en Cola -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <label for="queueInput" class="font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                            Tiempo en Cola (Espera en Backlog)
+                        </label>
+                        <span id="queueDaysVal" class="font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800">
+                            7 Días
+                        </span>
+                    </div>
+                    <input type="range" id="queueInput" min="1" max="30" value="7" class="w-full text-amber-500" oninput="updateMetrics()">
+                    <div class="flex justify-between text-[10px] text-slate-400 font-medium">
+                        <span>1 Día</span>
+                        <span>15 Días</span>
+                        <span>30 Días</span>
+                    </div>
+                </div>
+
+                <!-- Slider 2: Tiempo de Desarrollo / Trabajo -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <label for="workInput" class="font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                            Tiempo de Trabajo / Ciclo
+                        </label>
+                        <span id="workDaysVal" class="font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                            5 Días
+                        </span>
+                    </div>
+                    <input type="range" id="workInput" min="1" max="30" value="5" class="w-full text-emerald-500" oninput="updateMetrics()">
+                    <div class="flex justify-between text-[10px] text-slate-400 font-medium">
+                        <span>1 Día</span>
+                        <span>15 Días</span>
+                        <span>30 Días</span>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl text-xs text-slate-500 dark:text-slate-400 flex items-start gap-2">
+                    <i data-lucide="info" class="w-4 h-4 text-indigo-500 shrink-0 mt-0.5"></i>
+                    <span>Ajusta las barras para observar cómo los cuellos de botella en la fase de espera incrementan drásticamente el Lead Time total sin alterar el tiempo real de desarrollo.</span>
+                </div>
+            </div>
+
+            <!-- Panel de Resultados Cálculados -->
+            <div class="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-3xl p-6 shadow-xl flex flex-col justify-between space-y-6">
+                <div>
+                    <h3 class="text-sm font-semibold text-indigo-200 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i data-lucide="calculator" class="w-4 h-4"></i> Indicadores de Rendimiento
+                    </h3>
+
+                    <div class="space-y-4">
+                        <!-- Lead Time Calculado -->
+                        <div class="bg-white/10 backdrop-blur rounded-2xl p-4 border border-white/10">
+                            <span class="text-xs text-indigo-200 block">Lead Time Total</span>
+                            <div class="flex items-baseline justify-between mt-1">
+                                <span id="calcLeadTime" class="text-3xl font-extrabold text-white">12</span>
+                                <span class="text-xs font-medium text-indigo-200">Días totales</span>
+                            </div>
+                        </div>
+
+                        <!-- Eficiencia del Flujo -->
+                        <div class="bg-white/10 backdrop-blur rounded-2xl p-4 border border-white/10">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-indigo-200">Eficiencia del Flujo</span>
+                                <span id="flowEfficiencyBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                    Buena
+                                </span>
+                            </div>
+                            <div class="flex items-baseline justify-between mt-1">
+                                <span id="calcEfficiency" class="text-3xl font-extrabold text-emerald-400">41.7%</span>
+                                <span class="text-xs font-medium text-slate-300">(Trabajo / Lead Time)</span>
+                            </div>
+                            <!-- Barra de Progreso Eficiencia -->
+                            <div class="w-full bg-slate-700/60 h-2 rounded-full mt-3 overflow-hidden">
+                                <div id="efficiencyBar" class="bg-emerald-400 h-full rounded-full transition-all duration-300" style="width: 41.7%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <p id="efficiencyAdvice" class="text-xs text-slate-300 italic border-t border-white/10 pt-4">
+                    "El 58.3% del tiempo la solicitud estuvo esperando en cola sin generar valor."
+                </p>
+            </div>
+
+        </section>
+
+        <!-- Sección Educativa de Conceptos Teóricos -->
+        <section class="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 dark:border-slate-700/60 space-y-6">
+            <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <i data-lucide="book-open" class="w-5 h-5 text-indigo-500"></i>
+                Glosario y Conceptos Clave
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+                <!-- Concepto 1: Lead Time -->
+                <div class="p-5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 space-y-2">
+                    <div class="flex items-center space-x-2 text-indigo-600 dark:text-indigo-400">
+                        <i data-lucide="clock" class="w-5 h-5"></i>
+                        <h3 class="font-bold text-sm">Lead Time</h3>
+                    </div>
+                    <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        Es la métrica percibida directamente por el <strong>cliente</strong>. Mide el tiempo total desde que realiza la petición hasta que la recibe terminada.
+                    </p>
+                </div>
+
+                <!-- Concepto 2: Cycle Time -->
+                <div class="p-5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 space-y-2">
+                    <div class="flex items-center space-x-2 text-emerald-600 dark:text-emerald-400">
+                        <i data-lucide="zap" class="w-5 h-5"></i>
+                        <h3 class="font-bold text-sm">Cycle Time</h3>
+                    </div>
+                    <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        Métrica interna del <strong>equipo de desarrollo</strong>. Mide la velocidad de ejecución una vez que la tarea ha entrado en estado activo.
+                    </p>
+                </div>
+
+                <!-- Concepto 3: Tiempo en Cola -->
+                <div class="p-5 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 space-y-2">
+                    <div class="flex items-center space-x-2 text-amber-600 dark:text-amber-400">
+                        <i data-lucide="hourglass" class="w-5 h-5"></i>
+                        <h3 class="font-bold text-sm">Tiempo en Cola</h3>
+                    </div>
+                    <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        Período de inactividad donde la tarea espera ser atendida. Un tiempo en cola elevado indica sobrecarga o cuellos de botella en la entrada.
+                    </p>
+                </div>
+
+                <!-- Concepto 4: Eficiencia del Flujo -->
+                <div class="p-5 rounded-2xl bg-slate-100 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-700 space-y-2">
+                    <div class="flex items-center space-x-2 text-slate-700 dark:text-slate-300">
+                        <i data-lucide="activity" class="w-5 h-5"></i>
+                        <h3 class="font-bold text-sm">Eficiencia del Flujo</h3>
+                    </div>
+                    <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        Porcentaje del tiempo total en que se añade valor activo real. <br>
+                        <span class="font-semibold text-slate-800 dark:text-slate-200">Fórmula: (Cycle Time / Lead Time) × 100</span>
+                    </p>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="border-t border-slate-200 dark:border-slate-800 py-6 text-center text-xs text-slate-500 dark:text-slate-400">
+        <p>Métricas Ágiles y Kanban • Diseñado por Sebastián Montenegro</p>
+    </footer>
+
+    <script>
+        // Estado inicial de la aplicación
+        let queueDays = 7;
+        let workDays = 5;
+        let activeFocus = 'all';
+
+        // Inicialización al cargar la página
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            updateMetrics();
+        });
+
+        // Alternar modo oscuro / claro
+        function toggleTheme() {
+            const html = document.documentElement;
+            const themeIcon = document.getElementById('themeIcon');
+            
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                themeIcon.setAttribute('data-lucide', 'moon');
+            } else {
+                html.classList.add('dark');
+                themeIcon.setAttribute('data-lucide', 'sun');
+            }
+            lucide.createIcons();
+        }
+
+        // Actualizar métricas dinámicamente desde los sliders
+        function updateMetrics() {
+            queueDays = parseInt(document.getElementById('queueInput').value, 10);
+            workDays = parseInt(document.getElementById('workInput').value, 10);
+
+            const totalLeadTime = queueDays + workDays;
+            const flowEfficiency = ((workDays / totalLeadTime) * 100).toFixed(1);
+
+            // Actualizar textos en la UI
+            document.getElementById('queueDaysVal').innerText = `${queueDays} ${queueDays === 1 ? 'Día' : 'Días'}`;
+            document.getElementById('workDaysVal').innerText = `${workDays} ${workDays === 1 ? 'Día' : 'Días'}`;
+
+            document.getElementById('leadTimeValueDisplay').innerText = `${totalLeadTime} ${totalLeadTime === 1 ? 'Día' : 'Días'}`;
+            document.getElementById('queueTimeValueDisplay').innerText = `${queueDays} ${queueDays === 1 ? 'Día' : 'Días'}`;
+            document.getElementById('cycleTimeValueDisplay').innerText = `${workDays} ${workDays === 1 ? 'Día' : 'Días'}`;
+
+            // Actualizar tarjetas de cálculo
+            document.getElementById('calcLeadTime').innerText = totalLeadTime;
+            document.getElementById('calcEfficiency').innerText = `${flowEfficiency}%`;
+            
+            const efficiencyBar = document.getElementById('efficiencyBar');
+            efficiencyBar.style.width = `${flowEfficiency}%`;
+
+            // Badge y consejo de eficiencia
+            const badge = document.getElementById('flowEfficiencyBadge');
+            const advice = document.getElementById('efficiencyAdvice');
+            const queuePercent = ((queueDays / totalLeadTime) * 100).toFixed(1);
+
+            if (flowEfficiency >= 50) {
+                badge.innerText = 'Excelente';
+                badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+                efficiencyBar.className = 'bg-emerald-400 h-full rounded-full transition-all duration-300';
+            } else if (flowEfficiency >= 25) {
+                badge.innerText = 'Aceptable';
+                badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30';
+                efficiencyBar.className = 'bg-amber-400 h-full rounded-full transition-all duration-300';
+            } else {
+                badge.innerText = 'Baja Eficiencia';
+                badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30';
+                efficiencyBar.className = 'bg-rose-400 h-full rounded-full transition-all duration-300';
+            }
+
+            advice.innerText = `"El ${queuePercent}% del tiempo total, la tarea permanece inactiva en el backlog."`;
+        }
+
+        // Restablecer valores por defecto
+        function resetSliders() {
+            document.getElementById('queueInput').value = 7;
+            document.getElementById('workInput').value = 5;
+            updateMetrics();
+        }
+
+        // Control de visibilidad / enfoque visual de métricas
+        function setFocus(type) {
+            activeFocus = type;
+
+            const leadBox = document.getElementById('leadTimeContainer');
+            const cycleBox = document.getElementById('cycleTimeContainer');
+            const queueBox = document.getElementById('queueTimeContainer');
+
+            const btnAll = document.getElementById('btn-focus-all');
+            const btnLead = document.getElementById('btn-focus-lead');
+            const btnCycle = document.getElementById('btn-focus-cycle');
+
+            // Resetear clases de botones
+            const activeBtnClass = 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm';
+            const inactiveBtnClass = 'text-slate-600 dark:text-slate-400 hover:text-slate-900';
+
+            btnAll.className = `flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${type === 'all' ? activeBtnClass : inactiveBtnClass}`;
+            btnLead.className = `flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${type === 'lead' ? activeBtnClass : inactiveBtnClass}`;
+            btnCycle.className = `flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${type === 'cycle' ? activeBtnClass : inactiveBtnClass}`;
+
+            // Aplicar efectos visuales de enfoque
+            if (type === 'lead') {
+                leadBox.classList.add('glow-lead', 'scale-[1.01]', 'opacity-100');
+                queueBox.classList.add('opacity-40');
+                cycleBox.classList.add('opacity-40');
+                
+                queueBox.classList.remove('glow-queue', 'scale-[1.01]');
+                cycleBox.classList.remove('glow-cycle', 'scale-[1.01]');
+            } else if (type === 'cycle') {
+                cycleBox.classList.add('glow-cycle', 'scale-[1.01]', 'opacity-100');
+                leadBox.classList.add('opacity-40');
+                queueBox.classList.add('opacity-40');
+
+                leadBox.classList.remove('glow-lead', 'scale-[1.01]');
+                queueBox.classList.remove('glow-queue', 'scale-[1.01]');
+            } else {
+                leadBox.classList.remove('opacity-40', 'scale-[1.01]', 'glow-lead');
+                cycleBox.classList.remove('opacity-40', 'scale-[1.01]', 'glow-cycle');
+                queueBox.classList.remove('opacity-40', 'scale-[1.01]', 'glow-queue');
+            }
+        }
+    </script>
+</body>
+</html>
